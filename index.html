@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JU_ANI </title>
+    <!-- 引入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 與 ReactDOM CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- 引入 Babel 用於解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { 
+            background-color: #1a1a2e; /* 預設深色底，防閃爍 */
+            margin: 0; 
+            padding: 0; 
+            overflow-x: hidden; 
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .is-dragging { cursor: grabbing !important; }
+        
+        /* 粒子動畫 */
+        .cube-wrapper { position: fixed; pointer-events: none; z-index: 9999; perspective: 800px; }
+        .cube-particle { 
+            position: absolute; top: 0; left: 0; transform-style: preserve-3d; 
+            animation: cube-explode 1.6s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; 
+        }
+        .cube-face { position: absolute; width: 100%; height: 100%; background: #0056A3; backface-visibility: hidden; }
+
+        @keyframes cube-explode { 
+            0% { transform: scale(0) translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg); opacity: 1; } 
+            15% { transform: scale(1) translate3d(var(--tx), var(--ty), var(--tz)) rotateX(calc(var(--rotX) * 0.2)) rotateY(calc(var(--rotY) * 0.2)) rotateZ(calc(var(--rotZ) * 0.2)); opacity: 1; }
+            100% { transform: translate3d(var(--tx), calc(var(--ty) + var(--dy)), var(--tz)) scale(0.85) rotateX(var(--rotX)) rotateY(var(--rotY)) rotateZ(var(--rotZ)); opacity: 0; } 
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        function App() {
+            const baseVideos = [
+                { title: '最新動畫 Showreel', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772650010/%E5%B0%8F%E6%81%90%E9%BE%8D%E8%AA%95%E7%94%9F%E7%9A%84%E7%A7%98%E5%AF%86_rcpxur.mp4', startTime: 2 }, 
+                { title: 'A', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772849120/2026%E9%81%93%E7%B6%BA%E4%BD%9C%E5%93%81_%E5%A4%A7%E8%BE%B2%E5%A4%A7%E5%AF%8C%E8%B3%9E%E8%9E%A2%E5%AD%A3_30%E7%A7%92%E7%9F%AD%E7%89%87_%E6%A3%92%E7%90%83%E5%A0%B4%E7%94%A8%E5%BB%A3%E5%91%8A_myw99t.mp4' },
+                { title: 'B', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772851011/Cetaphil_Ad_arhufw.mp4' },
+                { title: 'C', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772849939/Open_E_qr317d.mp4' },
+                { title: 'D', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772716510/Bruce2015_vfaaho.mov', startTime: 5 },
+                { title: 'E', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772727914/1121_2025_Cbl_3D_iwq88t.mp4' },
+                { title: 'F', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772982706/2024_8_cetaphi_B5_720p_xqxorx.mp4' },
+                { title: 'G', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772850600/Vertical_6K_Colofgrading.Mp4_Comp_3_paclhi.mp4' },
+                { title: 'H', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772734071/Stray_Animal_All_Work_gcvujw.mp4' },
+                { title: 'I', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772729826/2024_Cblight_V7_vkx6dt.mp4' },
+                { title: 'J', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772729774/Eb1223_vukh7l.mp4' },
+                { title: 'K', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772728652/2025_Penghu_Light_jzaf1t.mp4' },
+                { title: 'L', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772724277/2025%E6%98%A5%E5%9F%8E%E9%BA%97%E9%83%BD%E5%BB%A3%E5%91%8A_rsujms.mp4' },
+                { title: 'M', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772718656/2025%E5%AA%BD%E5%AA%BD%E5%AF%B6%E5%AF%B6_%E5%AE%A2%E8%A3%BD%E7%89%88_e3goa8.mp4' },
+                { title: 'N', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772715497/2023_%E7%95%B6%E5%80%8B%E5%A5%BD%E9%A3%BC%E4%B8%BB_%E5%8B%95%E7%95%AB_uhwmva.mp4' } 
+            ];
+
+            const totalCards = 15;
+            const videos = Array.from({ length: totalCards }, (_, i) => ({
+                ...baseVideos[i % baseVideos.length],
+                uniqueKey: i
+            }));
+
+            const [selectedIndex, setSelectedIndex] = useState(null);
+            const [rotation, setRotation] = useState(0); 
+            const [isDraggingState, setIsDraggingState] = useState(false);
+            const [particles, setParticles] = useState([]);
+            
+            const [showEmailModal, setShowEmailModal] = useState(false);
+            const [copied, setCopied] = useState(false);
+
+            const cylinderRef = useRef(null);
+            const isDragging = useRef(false);
+            const startX = useRef(0);
+            const currentRotation = useRef(0);
+            const lastDeltaX = useRef(0);
+
+            const stepAngle = 360 / totalCards; 
+
+            useEffect(() => {
+                currentRotation.current = rotation;
+            }, [rotation]);
+
+            useEffect(() => {
+                for (let i = 0; i < totalCards; i++) {
+                    const vid = document.getElementById(`video-${i}`);
+                    if (vid) {
+                        if (i === selectedIndex) {
+                            setTimeout(() => {
+                                vid.muted = false;
+                                vid.playbackRate = 1.0;
+                                vid.play().catch(() => {});
+                            }, 50);
+                        } else {
+                            vid.pause();
+                            vid.muted = true;
+                        }
+                    }
+                }
+            }, [selectedIndex]);
+
+            const getDepthIndex = (index) => {
+                if (selectedIndex === null) return 0;
+                const len = videos.length;
+                const diff = Math.abs(index - selectedIndex);
+                const dist = Math.min(diff, len - diff);
+                return 100 - dist; 
+            };
+
+            const generateFanCSS = () => {
+                let css = `
+                    .poker-card[data-pos="0"] { --tx: -90px; --rot: -21deg; --ty: 20px; --fan-z: 10px; --h-rot: 10deg; }
+                    .poker-card[data-pos="1"] { --tx: -60px; --rot: -14deg; --ty: 5px; --fan-z: 20px; --h-rot: 10deg; }
+                    .poker-card[data-pos="2"] { --tx: -30px; --rot: -7deg; --ty: -10px; --fan-z: 30px; --h-rot: 10deg; }
+                    .poker-card[data-pos="3"] { --tx: 0px; --rot: 0deg; --ty: -15px; --fan-z: 40px; --h-rot: 0deg; }
+                    .poker-card[data-pos="4"] { --tx: 30px; --rot: 7deg; --ty: -10px; --fan-z: 30px; --h-rot: -10deg; }
+                    .poker-card[data-pos="5"] { --tx: 60px; --rot: 14deg; --ty: 5px; --fan-z: 20px; --h-rot: -10deg; }
+                    .poker-card[data-pos="6"] { --tx: 90px; --rot: 21deg; --ty: 20px; --fan-z: 10px; --h-rot: -10deg; }
+                `;
+                for (let i = 7; i < totalCards; i++) {
+                    css += `.poker-card[data-pos="${i}"] { --tx: 0px; --rot: 0deg; --ty: -15px; --fan-z: 0px; --h-rot: 0deg; }\n`;
+                }
+                css += `@media (min-width: 768px) {
+                    .poker-card[data-pos="0"] { --tx: -260px; --rot: -24deg; --ty: 50px; }
+                    .poker-card[data-pos="1"] { --tx: -170px; --rot: -16deg; --ty: 0px; }
+                    .poker-card[data-pos="2"] { --tx: -85px; --rot: -8deg; --ty: -30px; }
+                    .poker-card[data-pos="3"] { --tx: 0px; --rot: 0deg; --ty: -40px; }
+                    .poker-card[data-pos="4"] { --tx: 85px; --rot: 8deg; --ty: -30px; }
+                    .poker-card[data-pos="5"] { --tx: 170px; --rot: 16deg; --ty: 0px; }
+                    .poker-card[data-pos="6"] { --tx: 260px; --rot: 24deg; --ty: 50px; }
+                `;
+                for (let i = 7; i < totalCards; i++) {
+                    css += `  .poker-card[data-pos="${i}"] { --tx: 0px; --rot: 0deg; --ty: -40px; }\n`;
+                }
+                css += '}\n';
+                return css;
+            };
+
+            const spawnParticles = (clientX, clientY) => {
+                const idPrefix = Date.now();
+                const newCubes = Array.from({ length: 15 }).map((_, i) => {
+                    const size = 3 + Math.random() * 12; 
+                    const alpha = (0.3 + Math.random() * 0.5).toFixed(2); 
+                    const randomDrift = (Math.random() * 6 + 3).toFixed(2);
+                    return {
+                        id: `${idPrefix}-${i}`,
+                        x: clientX, y: clientY,
+                        size: size + 'px', halfSize: (size / 2) + 'px',
+                        delay: i * 0.02, 
+                        alpha: alpha,
+                        tx: (Math.random() - 0.5) * 120 + 'px', 
+                        ty: (Math.random() - 0.5) * 120 + 'px', 
+                        tz: (Math.random() - 0.5) * 120 + 'px',
+                        driftY: randomDrift + 'px',
+                        rotX: Math.random() * 720 + 'deg',
+                        rotY: Math.random() * 720 + 'deg',
+                        rotZ: Math.random() * 360 + 'deg',
+                    };
+                });
+                setParticles(prev => [...prev, ...newCubes]);
+                setTimeout(() => { setParticles(prev => prev.filter(p => !newCubes.includes(p))); }, 1600);
+            };
+
+            const handleGlobalClick = (e) => {
+                if (Math.abs(lastDeltaX.current) < 5 && !showEmailModal) spawnParticles(e.clientX, e.clientY);
+            };
+
+            const handleCardClick = (index) => {
+                if (Math.abs(lastDeltaX.current) > 5) return;
+                const len = videos.length;
+                if (selectedIndex === null) {
+                    setSelectedIndex(index);
+                    let targetRot = -index * stepAngle;
+                    if (index > Math.floor(len / 2)) targetRot = (len - index) * stepAngle;
+                    setRotation(targetRot);
+                    const videoEl = document.getElementById(`video-${index}`);
+                    if (videoEl) {
+                        videoEl.currentTime = videos[index].startTime || 0;
+                    }
+                } else {
+                    if (index === selectedIndex) return;
+                    const currentAbsIndex = Math.round(-currentRotation.current / stepAngle);
+                    const diff = (index - (currentAbsIndex % len + len) % len);
+                    let shortestDiff = diff;
+                    if (diff > Math.floor(len / 2)) shortestDiff -= len;
+                    if (diff < -Math.floor(len / 2)) shortestDiff += len;
+                    setRotation(currentRotation.current - shortestDiff * stepAngle);
+                    setSelectedIndex(index);
+                }
+            };
+
+            const handleClose = () => {
+                if (selectedIndex !== null) {
+                    const videoEl = document.getElementById(`video-${selectedIndex}`);
+                    if (videoEl) { 
+                        videoEl.pause(); 
+                        videoEl.muted = true; 
+                        videoEl.currentTime = videos[selectedIndex].startTime || 0.1;
+                    }
+                }
+                setSelectedIndex(null);
+                setRotation(0); 
+            };
+
+            const onDragStart = (e) => {
+                if (selectedIndex === null) return;
+                isDragging.current = true;
+                setIsDraggingState(true);
+                startX.current = e.touches ? e.touches[0].clientX : e.clientX;
+                lastDeltaX.current = 0;
+                if (cylinderRef.current) cylinderRef.current.style.transition = 'none';
+            };
+
+            const onDragMove = (e) => {
+                if (!isDragging.current || selectedIndex === null) return;
+                const x = e.touches ? e.touches[0].clientX : e.clientX;
+                const deltaX = x - startX.current;
+                lastDeltaX.current = deltaX;
+                const newRot = currentRotation.current + (deltaX / 4);
+                if (cylinderRef.current) {
+                    cylinderRef.current.style.transform = `translateZ(var(--carousel-tz)) rotateY(${newRot}deg)`;
+                }
+            };
+
+            const onDragEnd = () => {
+                if (!isDragging.current) return;
+                isDragging.current = false;
+                setIsDraggingState(false);
+                const len = videos.length;
+                const finalDragRotation = currentRotation.current + (lastDeltaX.current / 4);
+                const nearestIndexRaw = Math.round(-finalDragRotation / stepAngle);
+                const normalizedIndex = (nearestIndexRaw % len + len) % len;
+                const snapRotation = -nearestIndexRaw * stepAngle;
+                if (cylinderRef.current) {
+                    cylinderRef.current.style.transition = 'transform 0.8s cubic-bezier(0.23, 1, 0.32, 1)';
+                    cylinderRef.current.style.transform = `translateZ(var(--carousel-tz)) rotateY(${snapRotation}deg)`;
+                }
+                setRotation(snapRotation);
+                setSelectedIndex(normalizedIndex);
+            };
+
+            const handleCopyEmail = () => {
+                const email = 'bruceleework@gmail.com';
+                const textArea = document.createElement("textarea");
+                textArea.value = email;
+                textArea.style.top = "0";
+                textArea.style.left = "0";
+                textArea.style.position = "fixed";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000); 
+                } catch (err) {
+                    console.error('無法複製文字', err);
+                }
+                document.body.removeChild(textArea);
+            };
+
+            return (
+                <div 
+                    className="min-h-screen text-[#1d1021] font-sans antialiased flex flex-col overflow-x-hidden touch-none select-none" 
+                    onClick={handleGlobalClick}
+                >
+                    {/* 固定背景影片層 */}
+                    <video 
+                        autoPlay 
+                        loop 
+                        muted 
+                        playsInline
+                        className="fixed inset-0 w-full h-full object-cover -z-10 pointer-events-none bg-[#1a1a2e]"
+                    >
+                        <source src="https://res.cloudinary.com/dsvojygx5/video/upload/v1773045294/Bg_huztsx.mp4" type="video/mp4" />
+                    </video>
+                    
+                    <style dangerouslySetInnerHTML={{__html: `
+                        :root {
+                            --ring-radius: 260px;
+                            --carousel-tz: -260px;
+                        }
+                        @media (min-width: 640px) { :root { --ring-radius: 400px; --carousel-tz: -400px; } }
+                        @media (min-width: 768px) { :root { --ring-radius: 550px; --carousel-tz: -550px; } }
+                        @media (min-width: 1024px) { :root { --ring-radius: 650px; --carousel-tz: -650px; } }
+
+                        .scene { perspective: 2000px; transform-style: preserve-3d; pointer-events: none; }
+                        .carousel-cylinder { transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.23, 1, 0.32, 1); }
+
+                        .poker-card {
+                            --cX: 0px; --cY: 0px; --cZ: 0px; --cRot: 0deg; --cRotY: 0deg; --cScale: 1;
+                            --tx: 0px; --ty: 0px; --rot: 0deg; --fan-z: 0px; --h-rot: 0deg;
+                            pointer-events: auto;
+                            -webkit-transform-style: preserve-3d;
+                            backface-visibility: hidden;
+                            will-change: transform, opacity;
+                            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s ease;
+                            transform-origin: center center;
+                            transform: translateX(var(--cX)) translateY(var(--cY)) rotate(var(--cRot)) rotateY(var(--cRotY)) translateZ(var(--cZ)) scale(var(--cScale));
+                        }
+                        .carousel-cylinder[data-mode="fan"] .poker-card {
+                            --cX: var(--tx); --cY: var(--ty); --cRot: var(--rot); --cRotY: 0deg; --cZ: var(--fan-z); --cScale: 1;
+                        }
+                        ${generateFanCSS()}
+                        .carousel-cylinder[data-mode="fan"] .poker-card:hover {
+                            --cY: calc(var(--ty) + 35px); --cScale: 1.35; --cZ: 150px; --cRot: calc(var(--rot) + var(--h-rot)); z-index: 100 !important; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+                        }
+                        .carousel-cylinder[data-mode="carousel"] .poker-card {
+                            --cX: 0px; --cY: 0px; --cRot: 0deg; --cRotY: var(--ring-angle); --cZ: var(--ring-radius); --cScale: 0.85; 
+                        }
+                        .carousel-cylinder[data-mode="carousel"] .poker-card.is-active {
+                            --cY: 0px; --cScale: 1.35; --cZ: calc(var(--ring-radius) + 100px); z-index: 500 !important;
+                        }
+                        
+                        video:fullscreen { object-fit: contain !important; background: #000 !important; }
+                        video:-webkit-full-screen { object-fit: contain !important; background: #000 !important; }
+                        video:-moz-full-screen { object-fit: contain !important; background: #000 !important; }
+                        video:-ms-fullscreen { object-fit: contain !important; background: #000 !important; }
+                    `}} />
+
+                    {particles.map(p => (
+                        <div key={p.id} className="cube-wrapper" style={{ left: p.x, top: p.y }}>
+                            <div className="cube-particle" style={{ '--size': p.size, '--half-size': p.halfSize, '--alpha': p.alpha, '--dy': p.driftY, width: p.size, height: p.size, animationDelay: p.delay + 's', '--tx': p.tx, '--ty': p.ty, '--tz': p.tz, '--rotX': p.rotX, '--rotY': p.rotY, '--rotZ': p.rotZ }}>
+                                <div className="cube-face" style={{ transform: `rotateY(0deg) translateZ(${p.halfSize})`, filter: 'brightness(1.2)' }}></div>
+                                <div className="cube-face" style={{ transform: `rotateY(180deg) translateZ(${p.halfSize})`, filter: 'brightness(0.6)' }}></div>
+                            </div>
+                        </div>
+                    ))}
+
+                    <nav className="w-full z-50 bg-gray-200/75 backdrop-blur-[3px] border-b border-gray-300/50 shrink-0 pointer-events-auto">
+                        <div className="max-w-[1400px] mx-auto px-6 flex justify-center items-center py-3 md:py-5">
+                            <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/sdozccujzyq0tu6i0oyu.png" alt="JIA YOU" className="h-[65px] md:h-[82px] object-contain drop-shadow-sm" />
+                        </div>
+                    </nav>
+
+                    <main className={`flex-grow flex flex-col items-center justify-center w-full relative overflow-hidden bg-transparent ${isDraggingState ? 'is-dragging' : ''}`} onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
+                        
+                        {/* 💡 中間的關閉影片按鈕：保留您指定的雙圖淡入淡出、無底色，與放大70% */}
+                        <button onClick={handleClose} className={`group absolute bottom-6 md:bottom-12 z-[600] flex items-center justify-center w-[82px] h-[82px] transition-all duration-300 hover:scale-110 pointer-events-auto ${selectedIndex !== null ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <div className="relative w-[55px] h-[55px]">
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773043478/bp5jdyij3luwver3lbig.png" alt="Close" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773043478/mxg6y3stn7chayin3a9a.png" alt="Close Hover" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
+                            </div>
+                        </button>
+
+                        <div className="scene relative w-full max-w-6xl h-[45vh] md:h-[60vh] flex items-center justify-center -translate-y-[2%] md:-translate-y-[5%] pointer-events-none transition-transform duration-700 ease-out">
+                            <div ref={cylinderRef} className="carousel-cylinder relative w-full h-full flex items-center justify-center pointer-events-none" data-mode={selectedIndex === null ? 'fan' : 'carousel'} style={{ transform: selectedIndex !== null ? `translateZ(var(--carousel-tz)) rotateY(${rotation}deg)` : `translateZ(0) rotateY(0deg)` }}>
+                                {videos.map((video, index) => {
+                                    const isActive = selectedIndex === index;
+                                    return (
+                                        <div key={index} data-pos={index} onClick={() => handleCardClick(index)} onMouseEnter={() => { if (!isActive && video.url) { const vid = document.getElementById(`video-${index}`); if (vid) { vid.muted = true; vid.playbackRate = 1.5; vid.play().catch(() => {}); } } }} onMouseLeave={() => { if (!isActive && video.url) { const vid = document.getElementById(`video-${index}`); if (vid) { vid.pause(); vid.playbackRate = 1.0; vid.currentTime = video.startTime || 0.1; } } }} style={{ '--ring-angle': `${index * stepAngle}deg`, zIndex: getDepthIndex(index) }} className={`poker-card absolute w-[120px] sm:w-[180px] md:w-[240px] lg:w-[280px] rounded-2xl shadow-xl flex flex-col cursor-pointer bg-white ring-1 ring-black/5 ${selectedIndex === null ? (index < 7 ? 'opacity-100' : 'opacity-0 pointer-events-none') : (isActive ? 'opacity-100 is-active cursor-default' : 'opacity-40')}`}>
+                                            <div className="relative w-full aspect-video bg-gray-900 flex items-center justify-center overflow-hidden rounded-2xl">
+                                                {video.url ? (
+                                                    <video id={`video-${index}`} src={video.startTime ? `${video.url}#t=${video.startTime}` : video.url} className="absolute inset-0 w-full h-full object-cover z-10" loop muted playsInline controls={isActive} onTimeUpdate={(e) => { const st = video.startTime || 0.1; if (!isActive && e.target.currentTime >= st + 10) e.target.currentTime = st; }} />
+                                                ) : (
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1a202c] text-white z-10"><span className="text-4xl font-black">#{index + 1}</span></div>
+                                                )}
+                                            </div>
+                                            {!isActive && <div className="absolute inset-0 z-20 cursor-pointer bg-transparent rounded-2xl"></div>}
+                                            {selectedIndex !== null && <div className="absolute bottom-full mb-1 right-0 z-30 text-[7px] text-[#1d1021] font-bold pointer-events-none">#{index + 1}</div>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </main>
+
+                    <footer className="w-full border-t border-gray-300/50 bg-gray-200/75 backdrop-blur-[3px] py-10 shrink-0 relative z-50 flex flex-col items-center gap-6 pointer-events-auto">
+                        <div className="flex items-center gap-8">
+                            <a href="https://www.instagram.com/brucelee_0315/" target="_blank" className="group transform hover:scale-110 transition-all inline-block relative w-6 h-6">
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/sumwisvejzputyua6ev6.png" alt="Instagram" className="absolute inset-0 w-6 h-6 object-contain transition-opacity duration-300 group-hover:opacity-0" />
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037625/kcfoqze9eld8nzbjlzlc.png" alt="Instagram Hover" className="absolute inset-0 w-6 h-6 object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
+                            </a>
+                            <a href="https://www.youtube.com/playlist?list=PLSCTNmE37Eu_dR0Q5ofujGvWh4WLhFzYO" target="_blank" className="group transform hover:scale-110 transition-all inline-block relative w-6 h-6">
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/r1kqvxkv5p3l32g33oz8.png" alt="YouTube" className="absolute inset-0 w-6 h-6 object-contain transition-opacity duration-300 group-hover:opacity-0" />
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037625/n6901zavjz7wqegdasmh.png" alt="YouTube Hover" className="absolute inset-0 w-6 h-6 object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
+                            </a>
+                            <button onClick={() => setShowEmailModal(true)} className="group transform hover:scale-110 transition-all inline-block relative w-6 h-6 focus:outline-none">
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/kiscqnu1yeemr1vry311.png" alt="Email" className="absolute inset-0 w-6 h-6 object-contain transition-opacity duration-300 group-hover:opacity-0" />
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037625/cn0ttakfhgy0fk9cb0uq.png" alt="Email Hover" className="absolute inset-0 w-6 h-6 object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
+                            </button>
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-bold tracking-[0.2em] uppercase text-center px-6">Copyright © {new Date().getFullYear()} Jia You Animation Co., Ltd.</div>
+                    </footer>
+
+                    {/* 💡 透明毛玻璃聯絡信箱彈出視窗 */}
+                    {showEmailModal && (
+                        <div 
+                            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 pointer-events-auto" 
+                            onClick={() => setShowEmailModal(false)}
+                        >
+                            <div 
+                                className="relative bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 max-w-sm w-full shadow-2xl transform transition-all text-center" 
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <button 
+                                    onClick={() => setShowEmailModal(false)} 
+                                    className="absolute top-5 right-5 text-white/60 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 focus:outline-none"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+
+                                <p className="text-white mt-4 mb-8 select-all font-medium text-xl break-all drop-shadow-md tracking-wider">
+                                    bruceleework@gmail.com
+                                </p>
+                                
+                                <div className="flex flex-col gap-3">
+                                    <button 
+                                        onClick={handleCopyEmail}
+                                        className={`w-full py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 border ${copied ? 'bg-[#0056A3] text-white shadow-lg shadow-[#0056A3]/30 border-[#0056A3]' : 'bg-white/10 text-white hover:bg-white/20 border-white/20'}`}
+                                    >
+                                        {copied ? (
+                                            <><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg> 已複製！</>
+                                        ) : (
+                                            <><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> 複製信箱</>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
