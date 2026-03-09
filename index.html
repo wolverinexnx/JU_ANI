@@ -268,7 +268,7 @@
 
             return (
                 <div 
-                    className="min-h-screen text-[#1d1021] font-sans antialiased flex flex-col overflow-x-hidden touch-none select-none" 
+                    className="min-h-screen text-[#1d1021] font-sans antialiased flex flex-col overflow-x-hidden touch-none select-none relative z-0" 
                     onClick={handleGlobalClick}
                 >
                     {/* 固定背景影片層 */}
@@ -342,7 +342,7 @@
 
                     <main className={`flex-grow flex flex-col items-center justify-center w-full relative overflow-hidden bg-transparent ${isDraggingState ? 'is-dragging' : ''}`} onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
                         
-                        {/* 💡 中間的關閉影片按鈕：保留您指定的雙圖淡入淡出、無底色，與放大70% */}
+                        {/* 💡 中間的關閉影片按鈕 */}
                         <button onClick={handleClose} className={`group absolute bottom-6 md:bottom-12 z-[600] flex items-center justify-center w-[82px] h-[82px] transition-all duration-300 hover:scale-110 pointer-events-auto ${selectedIndex !== null ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                             <div className="relative w-[55px] h-[55px]">
                                 <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773043478/bp5jdyij3luwver3lbig.png" alt="Close" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
@@ -358,7 +358,17 @@
                                         <div key={index} data-pos={index} onClick={() => handleCardClick(index)} onMouseEnter={() => { if (!isActive && video.url) { const vid = document.getElementById(`video-${index}`); if (vid) { vid.muted = true; vid.playbackRate = 1.5; vid.play().catch(() => {}); } } }} onMouseLeave={() => { if (!isActive && video.url) { const vid = document.getElementById(`video-${index}`); if (vid) { vid.pause(); vid.playbackRate = 1.0; vid.currentTime = video.startTime || 0.1; } } }} style={{ '--ring-angle': `${index * stepAngle}deg`, zIndex: getDepthIndex(index) }} className={`poker-card absolute w-[120px] sm:w-[180px] md:w-[240px] lg:w-[280px] rounded-2xl shadow-xl flex flex-col cursor-pointer bg-white ring-1 ring-black/5 ${selectedIndex === null ? (index < 7 ? 'opacity-100' : 'opacity-0 pointer-events-none') : (isActive ? 'opacity-100 is-active cursor-default' : 'opacity-40')}`}>
                                             <div className="relative w-full aspect-video bg-gray-900 flex items-center justify-center overflow-hidden rounded-2xl">
                                                 {video.url ? (
-                                                    <video id={`video-${index}`} src={video.startTime ? `${video.url}#t=${video.startTime}` : video.url} className="absolute inset-0 w-full h-full object-cover z-10" loop muted playsInline controls={isActive} onTimeUpdate={(e) => { const st = video.startTime || 0.1; if (!isActive && e.target.currentTime >= st + 10) e.target.currentTime = st; }} />
+                                                    /* 💡 修正：手機環狀模式時，所有影片都顯示控制器 */
+                                                    <video 
+                                                        id={`video-${index}`} 
+                                                        src={video.startTime ? `${video.url}#t=${video.startTime}` : video.url} 
+                                                        className="absolute inset-0 w-full h-full object-cover z-10" 
+                                                        loop 
+                                                        muted 
+                                                        playsInline 
+                                                        controls={selectedIndex !== null} 
+                                                        onTimeUpdate={(e) => { const st = video.startTime || 0.1; if (!isActive && e.target.currentTime >= st + 10) e.target.currentTime = st; }} 
+                                                    />
                                                 ) : (
                                                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1a202c] text-white z-10"><span className="text-4xl font-black">#{index + 1}</span></div>
                                                 )}
@@ -390,7 +400,7 @@
                         <div className="text-[10px] text-gray-400 font-bold tracking-[0.2em] uppercase text-center px-6">Copyright © {new Date().getFullYear()} Jia You Animation Co., Ltd.</div>
                     </footer>
 
-                    {/* 💡 透明毛玻璃聯絡信箱彈出視窗 */}
+                    {/* 透明毛玻璃聯絡信箱彈出視窗 */}
                     {showEmailModal && (
                         <div 
                             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 pointer-events-auto" 
