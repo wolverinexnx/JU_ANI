@@ -3,42 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JU_ANI </title>
-    <!-- 引入 Tailwind CSS CDN -->
+    <title>JU_ANI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 React 與 ReactDOM CDN -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- 引入 Babel 用於解析 JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        body { 
-            background-color: #1a1a2e; 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; /* 防止手機瀏覽器上下拉動產生的空白 */
+        body {
+            background-color: #1a1a2e;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
             width: 100vw;
             height: 100vh;
         }
-        .is-dragging { cursor: grabbing !important; }
-        
+
         /* 粒子動畫 */
         .cube-wrapper { position: fixed; pointer-events: none; z-index: 9999; perspective: 800px; }
-        .cube-particle { 
-            position: absolute; top: 0; left: 0; transform-style: preserve-3d; 
-            animation: cube-explode 1.6s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; 
+        .cube-particle {
+            position: absolute; top: 0; left: 0; transform-style: preserve-3d;
+            animation: cube-explode 1.6s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
         }
         .cube-face { position: absolute; width: 100%; height: 100%; background: #0056A3; backface-visibility: hidden; }
 
-        @keyframes cube-explode { 
-            0% { transform: scale(0) translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg); opacity: 1; } 
-            15% { transform: scale(1) translate3d(var(--tx), var(--ty), var(--tz)) rotateX(calc(var(--rotX) * 0.2)) rotateY(calc(var(--rotY) * 0.2)) rotateZ(calc(var(--rotZ) * 0.2)); opacity: 1; }
-            100% { transform: translate3d(var(--tx), calc(var(--ty) + var(--dy)), var(--tz)) scale(0.85) rotateX(var(--rotX)) rotateY(var(--rotY)) rotateZ(var(--rotZ)); opacity: 0; } 
+        @keyframes cube-explode {
+            0%   { transform: scale(0) translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg); opacity: 1; }
+            15%  { transform: scale(1) translate3d(var(--tx), var(--ty), var(--tz)) rotateX(calc(var(--rotX) * 0.2)) rotateY(calc(var(--rotY) * 0.2)) rotateZ(calc(var(--rotZ) * 0.2)); opacity: 1; }
+            100% { transform: translate3d(var(--tx), calc(var(--ty) + var(--dy)), var(--tz)) scale(0.85) rotateX(var(--rotX)) rotateY(var(--rotY)) rotateZ(var(--rotZ)); opacity: 0; }
         }
 
-        /* 隱藏手機原生滾動條 */
+        .canvas-container {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+        }
+        .canvas-container.is-dragging {
+            cursor: grabbing;
+        }
+
+        /*
+         * BUG FIX #1：原本程式碼裡同一個元素寫了兩個 transform 屬性，
+         * 後面的 rotate() 覆蓋了前面的 translate3d()，導致所有卡片堆在一起。
+         * 修正方式：把 translate 改為 left/top absolute 定位，
+         * 讓 transform 只負責 rotate + hover scale，互不干擾。
+         */
+        .poker-card {
+            position: absolute;
+            /* transform 只放 rotate，由 JS 透過 CSS variable 注入旋轉角度 */
+            transform: rotate(var(--card-rot, 0deg));
+            transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1),
+                        box-shadow 0.3s ease;
+            will-change: transform;
+            border-radius: 1rem;
+            background: white;
+            box-shadow: 0 10px 30px -8px rgba(0,0,0,0.4);
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        /*
+         * BUG FIX #2：原本 .poker-card:hover 的 transform 會被 inline style 覆蓋無效。
+         * 現在 inline style 只有 left/top，transform 只在 CSS 裡，hover 可以正常運作。
+         */
+        .poker-card:hover {
+            transform: rotate(var(--card-rot, 0deg)) scale(1.06) translateY(-12px);
+            box-shadow: 0 28px 56px -10px rgba(0, 0, 0, 0.55);
+            z-index: 100 !important;
+        }
+
+        /* ── 影片預覽 Modal ── */
+        .video-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0);
+            backdrop-filter: blur(0px);
+            -webkit-backdrop-filter: blur(0px);
+            transition: background 0.38s ease, backdrop-filter 0.38s ease;
+            pointer-events: none;
+        }
+        .video-modal-backdrop.open {
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            pointer-events: auto;
+        }
+
+        .video-modal-box {
+            position: fixed;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 40px 100px -20px rgba(0,0,0,0.8);
+            /* 初始：從卡片位置展開，由 JS 動態設定 */
+            transition: top 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                        left 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                        width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                        height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                        border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                        opacity 0.3s ease;
+            z-index: 1001;
+        }
+
+        .video-modal-close {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            z-index: 10;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.55);
+            border: 1.5px solid rgba(255,255,255,0.2);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease, background 0.2s ease, transform 0.15s ease;
+            backdrop-filter: blur(4px);
+        }
+        .video-modal-close.visible { opacity: 1; }
+        .video-modal-close:hover { background: rgba(255,255,255,0.2); transform: scale(1.1); }
+        .video-modal-close:active { transform: scale(0.92); }
+
         ::-webkit-scrollbar { display: none; }
     </style>
 </head>
@@ -46,382 +142,422 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useRef, useEffect } = React;
+        const { useState, useRef, useEffect, useCallback } = React;
 
+        // ─── 常數 ───────────────────────────────────────────────────────────────
+        const BASE_VIDEOS = [
+            { title: '最新動畫 Showreel', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772650010/%E5%B0%8F%E6%81%90%E9%BE%8D%E8%AA%95%E7%94%9F%E7%9A%84%E7%A7%98%E5%AF%86_rcpxur.mp4', startTime: 2 },
+            { title: 'A', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772849120/2026%E9%81%93%E7%B6%BA%E4%BD%9C%E5%93%81_%E5%A4%A7%E8%BE%B2%E5%A4%A7%E5%AF%8C%E8%B3%9E%E8%9E%A2%E5%AD%A3_30%E7%A7%92%E7%9F%AD%E7%89%87_%E6%A3%92%E7%90%83%E5%A0%B4%E7%94%A8%E5%BB%A3%E5%91%8A_myw99t.mp4' },
+            { title: 'B', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772851011/Cetaphil_Ad_arhufw.mp4' },
+            { title: 'C', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772849939/Open_E_qr317d.mp4' },
+            { title: 'D', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772716510/Bruce2015_vfaaho.mov', startTime: 5 },
+            { title: 'E', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772727914/1121_2025_Cbl_3D_iwq88t.mp4' },
+            { title: 'F', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772982706/2024_8_cetaphi_B5_720p_xqxorx.mp4' },
+            { title: 'G', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772728652/2025_Penghu_Light_jzaf1t.mp4' },
+            { title: 'H', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772734071/Stray_Animal_All_Work_gcvujw.mp4' },
+            { title: 'I', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772729826/2024_Cblight_V7_vkx6dt.mp4' },
+            { title: 'J', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772729774/Eb1223_vukh7l.mp4' },
+            { title: 'K', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1774112987/Comp_1_qusufx.mp4' },
+            { title: 'L', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772724277/2025%E6%98%A5%E5%9F%8E%E9%BA%97%E9%83%BD%E5%BB%A3%E5%91%8A_rsujms.mp4' },
+            { title: 'M', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772718656/2025%E5%AA%BD%E5%AA%BD%E5%AF%B6%E5%AF%B6_%E5%AE%A2%E8%A3%BD%E7%89%88_e3goa8.mp4' },
+            { title: 'N', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772715497/2023_%E7%95%B6%E5%80%8B%E5%A5%BD%E9%A3%BC%E4%B8%BB_%E5%8B%95%E7%95%AB_uhwmva.mp4' }
+        ];
+        const TOTAL_CARDS = 15;
+
+        // ─── 卡片位置計算（只算一次）──────────────────────────────────────────
+        function calcCardPositions() {
+            const isDesktop = window.innerWidth >= 768;
+            const cols      = isDesktop ? 5 : 3;
+            const rows      = isDesktop ? 3 : 5;
+            const cellW     = isDesktop ? 350 : 200;
+            const cellH     = isDesktop ? 250 : 160;
+            const totalW    = cols * cellW;
+            const totalH    = rows * cellH;
+            const startX    = -totalW / 2 + cellW / 2;
+            const startY    = -totalH / 2 + cellH / 2;
+
+            return Array.from({ length: TOTAL_CARDS }, (_, i) => {
+                const col     = i % cols;
+                const row     = Math.floor(i / cols);
+                const offsetX = (Math.random() - 0.5) * cellW * 0.4;
+                const offsetY = (Math.random() - 0.5) * cellH * 0.4;
+                return {
+                    x:   startX + col * cellW + offsetX,
+                    y:   startY + row * cellH + offsetY,
+                    rot: (Math.random() - 0.5) * 10
+                };
+            });
+        }
+
+        // ─── App ────────────────────────────────────────────────────────────────
         function App() {
-            const baseVideos = [
-                { title: '最新動畫 Showreel', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772650010/%E5%B0%8F%E6%81%90%E9%BE%8D%E8%AA%95%E7%94%9F%E7%9A%84%E7%A7%98%E5%AF%86_rcpxur.mp4', startTime: 2 }, // #1 (最新動畫 Showreel)
-                { title: 'A', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772849120/2026%E9%81%93%E7%B6%BA%E4%BD%9C%E5%93%81_%E5%A4%A7%E8%BE%B2%E5%A4%A7%E5%AF%8C%E8%B3%9E%E8%9E%A2%E5%AD%A3_30%E7%A7%92%E7%9F%AD%E7%89%87_%E6%A3%92%E7%90%83%E5%A0%B4%E7%94%A8%E5%BB%A3%E5%91%8A_myw99t.mp4' }, // #2 (A)
-                { title: 'B', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772851011/Cetaphil_Ad_arhufw.mp4' }, // #3 (B)
-                { title: 'C', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772849939/Open_E_qr317d.mp4' }, // #4 (C)
-                { title: 'D', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772716510/Bruce2015_vfaaho.mov', startTime: 5 }, // #5 (D)
-                { title: 'E', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772727914/1121_2025_Cbl_3D_iwq88t.mp4' }, // #6 (E)
-                { title: 'F', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772982706/2024_8_cetaphi_B5_720p_xqxorx.mp4' }, // #7 (F)
-                { title: 'G', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772728652/2025_Penghu_Light_jzaf1t.mp4' }, // #8 (G)
-                { title: 'H', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772734071/Stray_Animal_All_Work_gcvujw.mp4' }, // #9 (H)
-                { title: 'I', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772729826/2024_Cblight_V7_vkx6dt.mp4' }, // #10 (I)
-                { title: 'J', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772729774/Eb1223_vukh7l.mp4' }, // #11 (J)
-                { title: 'K', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1774112987/Comp_1_qusufx.mp4' }, // #12 (K)
-                { title: 'L', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772724277/2025%E6%98%A5%E5%9F%8E%E9%BA%97%E9%83%BD%E5%BB%A3%E5%91%8A_rsujms.mp4' }, // #13 (L)
-                { title: 'M', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772718656/2025%E5%AA%BD%E5%AA%BD%E5%AF%B6%E5%AF%B6_%E5%AE%A2%E8%A3%BD%E7%89%88_e3goa8.mp4' }, // #14 (M)
-                { title: 'N', url: 'https://res.cloudinary.com/dsvojygx5/video/upload/v1772715497/2023_%E7%95%B6%E5%80%8B%E5%A5%BD%E9%A3%BC%E4%B8%BB_%E5%8B%95%E7%95%AB_uhwmva.mp4' }  // #15 (N)
-            ];
-
-            const totalCards = 15;
-            const videos = Array.from({ length: totalCards }, (_, i) => ({
-                ...baseVideos[i % baseVideos.length],
+            const videos = Array.from({ length: TOTAL_CARDS }, (_, i) => ({
+                ...BASE_VIDEOS[i % BASE_VIDEOS.length],
                 uniqueKey: i
             }));
 
-            const [selectedIndex, setSelectedIndex] = useState(null);
-            const [rotation, setRotation] = useState(0); 
-            const [isDraggingState, setIsDraggingState] = useState(false);
-            const [particles, setParticles] = useState([]);
-            
             const [showEmailModal, setShowEmailModal] = useState(false);
-            const [copied, setCopied] = useState(false);
+            const [copied, setCopied]                 = useState(false);
+            const [particles, setParticles]           = useState([]);
+            const [pan, setPan]                       = useState({ x: 0, y: 0 });
+            const [dragging, setDragging]             = useState(false);
 
-            const cylinderRef = useRef(null);
-            const isDragging = useRef(false);
-            const startX = useRef(0);
-            const currentRotation = useRef(0);
-            const lastDeltaX = useRef(0);
+            // ── 影片預覽 Modal 狀態 ──
+            // phase: 'closed' | 'opening' | 'open' | 'closing'
+            const [modalPhase, setModalPhase]   = useState('closed');
+            const [modalVideo, setModalVideo]   = useState(null);
+            const [modalStyle, setModalStyle]   = useState({});
+            const [modalBgOpen, setModalBgOpen] = useState(false);
+            const [closeVisible, setCloseVisible] = useState(false);
+            const originRectRef                 = useRef(null);  // 卡片在螢幕上的 DOMRect
+            const modalVideoRef                 = useRef(null);
 
-            const stepAngle = 360 / totalCards; 
+            const cardPositions  = useRef([]);
+            const isDragging     = useRef(false);
+            const wasDragging    = useRef(false);
+            const lastPos        = useRef({ x: 0, y: 0 });
+            const currentPan     = useRef({ x: 0, y: 0 });
+            // 慣性滑動
+            const velocity       = useRef({ x: 0, y: 0 });
+            const rafId          = useRef(null);
 
+            // ESC 鍵關閉 Modal
             useEffect(() => {
-                currentRotation.current = rotation;
-            }, [rotation]);
+                const onKey = (e) => { if (e.key === 'Escape') handleCloseModal(); };
+                window.addEventListener('keydown', onKey);
+                return () => window.removeEventListener('keydown', onKey);
+            }, [modalPhase]);
 
+            // 初始化卡片位置
             useEffect(() => {
-                for (let i = 0; i < totalCards; i++) {
-                    const vid = document.getElementById(`video-${i}`);
-                    if (vid) {
-                        if (i === selectedIndex) {
-                            setTimeout(() => {
-                                vid.muted = false;
-                                vid.playbackRate = 1.0;
-                                vid.play().catch(() => {});
-                            }, 50);
-                        } else {
-                            vid.pause();
-                            vid.muted = true;
-                        }
-                    }
+                cardPositions.current = calcCardPositions();
+                setPan({ x: 0, y: 0 }); // 觸發一次 render
+            }, []);
+
+            // ── 慣性動畫 ──
+            const startMomentum = useCallback(() => {
+                cancelAnimationFrame(rafId.current);
+                const tick = () => {
+                    velocity.current.x *= 0.92;
+                    velocity.current.y *= 0.92;
+                    if (Math.abs(velocity.current.x) < 0.3 && Math.abs(velocity.current.y) < 0.3) return;
+                    currentPan.current.x += velocity.current.x;
+                    currentPan.current.y += velocity.current.y;
+                    setPan({ ...currentPan.current });
+                    rafId.current = requestAnimationFrame(tick);
+                };
+                rafId.current = requestAnimationFrame(tick);
+            }, []);
+
+            // ── 拖曳事件 ──
+            const getClientXY = (e) => e.touches
+                ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+                : { x: e.clientX, y: e.clientY };
+
+            const handlePointerDown = useCallback((e) => {
+                if (showEmailModal || modalPhase !== 'closed') return;
+                cancelAnimationFrame(rafId.current);
+                isDragging.current  = true;
+                wasDragging.current = false;
+                velocity.current    = { x: 0, y: 0 };
+                lastPos.current     = getClientXY(e);
+                setDragging(true);
+            }, [showEmailModal, modalPhase]);
+
+            const handlePointerMove = useCallback((e) => {
+                if (!isDragging.current) return;
+                const { x, y } = getClientXY(e);
+                const dx = x - lastPos.current.x;
+                const dy = y - lastPos.current.y;
+
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) wasDragging.current = true;
+
+                velocity.current = { x: dx, y: dy };
+                currentPan.current.x += dx;
+                currentPan.current.y += dy;
+                setPan({ ...currentPan.current });
+                lastPos.current = { x, y };
+            }, []);
+
+            const handlePointerUp = useCallback(() => {
+                isDragging.current = false;
+                setDragging(false);
+                startMomentum();
+            }, [startMomentum]);
+
+            // 滾輪支援
+            const handleWheel = useCallback((e) => {
+                if (showEmailModal) return;
+                cancelAnimationFrame(rafId.current);
+                currentPan.current.x -= e.deltaX * 1.2;
+                currentPan.current.y -= e.deltaY * 1.2;
+                setPan({ ...currentPan.current });
+            }, [showEmailModal]);
+
+            // ── 卡片互動 ──
+            const handleGridHover = (index, entering) => {
+                const vid = document.getElementById(`video-${index}`);
+                if (!vid) return;
+                if (entering) {
+                    vid.play().catch(() => {});
+                } else {
+                    vid.pause();
+                    vid.currentTime = videos[index].startTime || 0.1;
                 }
-            }, [selectedIndex]);
-
-            const getDepthIndex = (index) => {
-                if (selectedIndex === null) return 0;
-                const len = videos.length;
-                const diff = Math.abs(index - selectedIndex);
-                const dist = Math.min(diff, len - diff);
-                return 100 - dist; 
             };
 
-            const generateFanCSS = () => {
-                let css = `
-                    .poker-card[data-pos="0"] { --tx: -80px; --rot: -21deg; --ty: 20px; --fan-z: 10px; --h-rot: 10deg; }
-                    .poker-card[data-pos="1"] { --tx: -55px; --rot: -14deg; --ty: 5px; --fan-z: 20px; --h-rot: 10deg; }
-                    .poker-card[data-pos="2"] { --tx: -28px; --rot: -7deg; --ty: -10px; --fan-z: 30px; --h-rot: 10deg; }
-                    .poker-card[data-pos="3"] { --tx: 0px; --rot: 0deg; --ty: -15px; --fan-z: 40px; --h-rot: 0deg; }
-                    .poker-card[data-pos="4"] { --tx: 28px; --rot: 7deg; --ty: -10px; --fan-z: 30px; --h-rot: -10deg; }
-                    .poker-card[data-pos="5"] { --tx: 55px; --rot: 14deg; --ty: 5px; --fan-z: 20px; --h-rot: -10deg; }
-                    .poker-card[data-pos="6"] { --tx: 80px; --rot: 21deg; --ty: 20px; --fan-z: 10px; --h-rot: -10deg; }
-                `;
-                for (let i = 7; i < totalCards; i++) {
-                    css += `.poker-card[data-pos="${i}"] { --tx: 0px; --rot: 0deg; --ty: -15px; --fan-z: 0px; --h-rot: 0deg; }\n`;
+            // ── 計算展開目標尺寸（符合 16:9，盡量撐滿視窗）──
+            const getExpandedRect = () => {
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const padding = window.innerWidth < 640 ? 16 : 48;
+                let w = vw - padding * 2;
+                let h = w * 9 / 16;
+                if (h > vh - padding * 2) {
+                    h = vh - padding * 2;
+                    w = h * 16 / 9;
                 }
-                css += `@media (min-width: 768px) {
-                    .poker-card[data-pos="0"] { --tx: -260px; --rot: -24deg; --ty: 50px; }
-                    .poker-card[data-pos="1"] { --tx: -170px; --rot: -16deg; --ty: 0px; }
-                    .poker-card[data-pos="2"] { --tx: -85px; --rot: -8deg; --ty: -30px; }
-                    .poker-card[data-pos="3"] { --tx: 0px; --rot: 0deg; --ty: -40px; }
-                    .poker-card[data-pos="4"] { --tx: 85px; --rot: 8deg; --ty: -30px; }
-                    .poker-card[data-pos="5"] { --tx: 170px; --rot: 16deg; --ty: 0px; }
-                    .poker-card[data-pos="6"] { --tx: 260px; --rot: 24deg; --ty: 50px; }
-                `;
-                for (let i = 7; i < totalCards; i++) {
-                    css += `  .poker-card[data-pos="${i}"] { --tx: 0px; --rot: 0deg; --ty: -40px; }\n`;
-                }
-                css += '}\n';
-                return css;
+                return { width: w, height: h, left: (vw - w) / 2, top: (vh - h) / 2 };
             };
 
-            const spawnParticles = (clientX, clientY) => {
-                const idPrefix = Date.now();
-                const newCubes = Array.from({ length: 15 }).map((_, i) => {
-                    const size = 3 + Math.random() * 12; 
-                    const alpha = (0.3 + Math.random() * 0.5).toFixed(2); 
-                    const randomDrift = (Math.random() * 6 + 3).toFixed(2);
+            // ── 開啟 Modal ──
+            const handleCardClick = (index, e) => {
+                if (wasDragging.current) { e.preventDefault(); return; }
+
+                // 取得該卡片目前在螢幕上的位置
+                const cardEl = e.currentTarget;
+                const rect   = cardEl.getBoundingClientRect();
+
+                originRectRef.current = rect;
+                setModalVideo(videos[index]);
+                setModalPhase('opening');
+                setModalBgOpen(false);
+                setCloseVisible(false);
+
+                // Step 1：先把 box 貼在卡片上
+                setModalStyle({
+                    left:         rect.left + 'px',
+                    top:          rect.top  + 'px',
+                    width:        rect.width  + 'px',
+                    height:       rect.height + 'px',
+                    borderRadius: '16px',
+                    opacity:      1,
+                });
+
+                // Step 2：下一 tick 展開到中央
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        const exp = getExpandedRect();
+                        setModalStyle({
+                            left:         exp.left   + 'px',
+                            top:          exp.top    + 'px',
+                            width:        exp.width  + 'px',
+                            height:       exp.height + 'px',
+                            borderRadius: '12px',
+                            opacity:      1,
+                        });
+                        setModalBgOpen(true);
+                        // 動畫結束後開始播放＋顯示關閉按鈕
+                        setTimeout(() => {
+                            setModalPhase('open');
+                            setCloseVisible(true);
+                            if (modalVideoRef.current) {
+                                modalVideoRef.current.muted  = false;
+                                modalVideoRef.current.currentTime = videos[index].startTime || 0;
+                                modalVideoRef.current.play().catch(() => {});
+                            }
+                        }, 430);
+                    });
+                });
+            };
+
+            // ── 關閉 Modal ──
+            const handleCloseModal = () => {
+                if (modalPhase !== 'open') return;
+                setModalPhase('closing');
+                setCloseVisible(false);
+                setModalBgOpen(false);
+
+                if (modalVideoRef.current) {
+                    modalVideoRef.current.pause();
+                    modalVideoRef.current.muted = true;
+                }
+
+                // 縮回原始卡片位置
+                const rect = originRectRef.current;
+                if (rect) {
+                    setModalStyle({
+                        left:         rect.left + 'px',
+                        top:          rect.top  + 'px',
+                        width:        rect.width  + 'px',
+                        height:       rect.height + 'px',
+                        borderRadius: '16px',
+                        opacity:      0,
+                    });
+                }
+                setTimeout(() => {
+                    setModalPhase('closed');
+                    setModalVideo(null);
+                }, 420);
+            };
+
+            // ── 全域點擊粒子 ──
+            const handleGlobalClick = (e) => {
+                if (!wasDragging.current && !showEmailModal && !e.target.closest('.poker-card')) {
+                    spawnParticles(e.clientX, e.clientY);
+                }
+            };
+
+            // ── Helpers ──
+            const spawnParticles = (cx, cy) => {
+                const prefix = Date.now();
+                const cubes = Array.from({ length: 15 }, (_, i) => {
+                    const size  = 3 + Math.random() * 12;
+                    const half  = size / 2;
                     return {
-                        id: `${idPrefix}-${i}`,
-                        x: clientX, y: clientY,
-                        size: size + 'px', halfSize: (size / 2) + 'px',
-                        delay: i * 0.02, 
-                        alpha: alpha,
-                        tx: (Math.random() - 0.5) * 120 + 'px', 
-                        ty: (Math.random() - 0.5) * 120 + 'px', 
-                        tz: (Math.random() - 0.5) * 120 + 'px',
-                        driftY: randomDrift + 'px',
-                        rotX: Math.random() * 720 + 'deg',
-                        rotY: Math.random() * 720 + 'deg',
-                        rotZ: Math.random() * 360 + 'deg',
+                        id:    `${prefix}-${i}`,
+                        x: cx, y: cy,
+                        size:  size + 'px',
+                        half:  half + 'px',
+                        delay: i * 0.02,
+                        alpha: (0.3 + Math.random() * 0.5).toFixed(2),
+                        tx:    ((Math.random() - 0.5) * 120) + 'px',
+                        ty:    ((Math.random() - 0.5) * 120) + 'px',
+                        tz:    ((Math.random() - 0.5) * 120) + 'px',
+                        dy:    (Math.random() * 6 + 3) + 'px',
+                        rotX:  (Math.random() * 720) + 'deg',
+                        rotY:  (Math.random() * 720) + 'deg',
+                        rotZ:  (Math.random() * 360) + 'deg',
                     };
                 });
-                setParticles(prev => [...prev, ...newCubes]);
-                setTimeout(() => { setParticles(prev => prev.filter(p => !newCubes.includes(p))); }, 1600);
-            };
-
-            const handleGlobalClick = (e) => {
-                if (Math.abs(lastDeltaX.current) < 5 && !showEmailModal) spawnParticles(e.clientX, e.clientY);
-            };
-
-            // 💡 處理進入全螢幕的輔助函式
-            const openFullscreen = (elem) => {
-                if (!elem) return;
-                
-                // 手機版全螢幕時，主動開啟聲音並播放，避免瀏覽器自動阻擋
-                elem.muted = false;
-                const playPromise = elem.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(() => {});
-                }
-
-                if (elem.requestFullscreen) {
-                    elem.requestFullscreen().catch(err => console.log(err));
-                } else if (elem.webkitEnterFullscreen) { // iOS Safari 影片專用全螢幕
-                    elem.webkitEnterFullscreen();
-                } else if (elem.webkitRequestFullscreen) {
-                    elem.webkitRequestFullscreen();
-                } else if (elem.msRequestFullscreen) {
-                    elem.msRequestFullscreen();
-                }
-            };
-
-            const handleCardClick = (index) => {
-                if (Math.abs(lastDeltaX.current) > 5) return;
-                const len = videos.length;
-                const videoEl = document.getElementById(`video-${index}`);
-                // 判斷是否為手機版
-                const isMobile = window.innerWidth < 768;
-
-                if (selectedIndex === null) {
-                    setSelectedIndex(index);
-                    let targetRot = -index * stepAngle;
-                    if (index > Math.floor(len / 2)) targetRot = (len - index) * stepAngle;
-                    setRotation(targetRot);
-                    
-                    if (videoEl) {
-                        videoEl.currentTime = videos[index].startTime || 0;
-                    }
-                } else {
-                    if (index === selectedIndex) {
-                        // 若已在正中央，點擊時若是手機版則直接進入全螢幕
-                        if (isMobile && videoEl) {
-                            openFullscreen(videoEl);
-                        }
-                        return;
-                    }
-                    const currentAbsIndex = Math.round(-currentRotation.current / stepAngle);
-                    const diff = (index - (currentAbsIndex % len + len) % len);
-                    let shortestDiff = diff;
-                    if (diff > Math.floor(len / 2)) shortestDiff -= len;
-                    if (diff < -Math.floor(len / 2)) shortestDiff += len;
-                    setRotation(currentRotation.current - shortestDiff * stepAngle);
-                    setSelectedIndex(index);
-                }
-
-                // 💡 點擊任一影片並轉向時，如果是手機版，自動觸發全螢幕播放
-                if (isMobile && videoEl) {
-                    openFullscreen(videoEl);
-                }
-            };
-
-            const handleClose = () => {
-                if (selectedIndex !== null) {
-                    const videoEl = document.getElementById(`video-${selectedIndex}`);
-                    if (videoEl) { 
-                        videoEl.pause(); 
-                        videoEl.muted = true; 
-                        videoEl.currentTime = videos[selectedIndex].startTime || 0.1;
-                    }
-                }
-                setSelectedIndex(null);
-                setRotation(0); 
-            };
-
-            const onDragStart = (e) => {
-                if (selectedIndex === null) return;
-                isDragging.current = true;
-                setIsDraggingState(true);
-                startX.current = e.touches ? e.touches[0].clientX : e.clientX;
-                lastDeltaX.current = 0;
-                if (cylinderRef.current) cylinderRef.current.style.transition = 'none';
-            };
-
-            const onDragMove = (e) => {
-                if (!isDragging.current || selectedIndex === null) return;
-                const x = e.touches ? e.touches[0].clientX : e.clientX;
-                const deltaX = x - startX.current;
-                lastDeltaX.current = deltaX;
-                // 手機版阻尼感調整，deltaX / 3 增加靈敏度
-                const newRot = currentRotation.current + (deltaX / 3.2);
-                if (cylinderRef.current) {
-                    cylinderRef.current.style.transform = `translateZ(var(--carousel-tz)) rotateY(${newRot}deg)`;
-                }
-            };
-
-            const onDragEnd = () => {
-                if (!isDragging.current) return;
-                isDragging.current = false;
-                setIsDraggingState(false);
-                const len = videos.length;
-                const finalDragRotation = currentRotation.current + (lastDeltaX.current / 3.2);
-                const nearestIndexRaw = Math.round(-finalDragRotation / stepAngle);
-                const normalizedIndex = (nearestIndexRaw % len + len) % len;
-                const snapRotation = -nearestIndexRaw * stepAngle;
-                if (cylinderRef.current) {
-                    cylinderRef.current.style.transition = 'transform 0.8s cubic-bezier(0.23, 1, 0.32, 1)';
-                    cylinderRef.current.style.transform = `translateZ(var(--carousel-tz)) rotateY(${snapRotation}deg)`;
-                }
-                setRotation(snapRotation);
-                setSelectedIndex(normalizedIndex);
+                setParticles(p => [...p, ...cubes]);
+                setTimeout(() => setParticles(p => p.filter(x => !cubes.includes(x))), 1600);
             };
 
             const handleCopyEmail = () => {
                 const email = 'bruceleework@gmail.com';
-                const textArea = document.createElement("textarea");
-                textArea.value = email;
-                textArea.style.top = "0";
-                textArea.style.left = "0";
-                textArea.style.position = "fixed";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000); 
-                } catch (err) {
-                    console.error('無法複製文字', err);
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(email).then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                    });
+                } else {
+                    // fallback for older browsers
+                    const ta = document.createElement('textarea');
+                    ta.value = email;
+                    Object.assign(ta.style, { position: 'fixed', top: 0, left: 0 });
+                    document.body.appendChild(ta);
+                    ta.focus(); ta.select();
+                    try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+                    catch(e) { console.error(e); }
+                    document.body.removeChild(ta);
                 }
-                document.body.removeChild(textArea);
             };
 
+            // ── 卡片尺寸 ──
+            const cardW = typeof window !== 'undefined' && window.innerWidth >= 1024 ? 320
+                        : typeof window !== 'undefined' && window.innerWidth >= 768  ? 280
+                        : typeof window !== 'undefined' && window.innerWidth >= 640  ? 220
+                        : 160;
+
             return (
-                <div 
-                    className="min-h-screen text-[#1d1021] font-sans antialiased flex flex-col overflow-x-hidden touch-none select-none relative z-0" 
-                    onClick={handleGlobalClick}
-                >
-                    {/* 固定背景影片層 */}
-                    <video 
-                        autoPlay 
-                        loop 
-                        muted 
-                        playsInline
-                        className="fixed inset-0 w-full h-full object-cover -z-10 pointer-events-none bg-[#1a1a2e]"
-                    >
+                <div className="min-h-screen text-[#1d1021] font-sans antialiased flex flex-col overflow-x-hidden touch-none select-none relative z-0">
+
+                    {/* 背景影片 */}
+                    <video autoPlay loop muted playsInline
+                        className="fixed inset-0 w-full h-full object-cover -z-10 pointer-events-none bg-[#1a1a2e]">
                         <source src="https://res.cloudinary.com/dsvojygx5/video/upload/v1773045294/Bg_huztsx.mp4" type="video/mp4" />
                     </video>
-                    
-                    <style dangerouslySetInnerHTML={{__html: `
-                        :root {
-                            --ring-radius: 240px;
-                            --carousel-tz: -240px;
-                        }
-                        @media (min-width: 640px) { :root { --ring-radius: 400px; --carousel-tz: -400px; } }
-                        @media (min-width: 768px) { :root { --ring-radius: 550px; --carousel-tz: -550px; } }
-                        @media (min-width: 1024px) { :root { --ring-radius: 650px; --carousel-tz: -650px; } }
 
-                        .scene { perspective: 2000px; transform-style: preserve-3d; pointer-events: none; }
-                        .carousel-cylinder { transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.23, 1, 0.32, 1); }
-
-                        .poker-card {
-                            --cX: 0px; --cY: 0px; --cZ: 0px; --cRot: 0deg; --cRotY: 0deg; --cScale: 1;
-                            --tx: 0px; --ty: 0px; --rot: 0deg; --fan-z: 0px; --h-rot: 0deg;
-                            pointer-events: auto;
-                            -webkit-transform-style: preserve-3d;
-                            backface-visibility: hidden;
-                            will-change: transform, opacity;
-                            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s ease;
-                            transform-origin: center center;
-                            transform: translateX(var(--cX)) translateY(var(--cY)) rotate(var(--cRot)) rotateY(var(--cRotY)) translateZ(var(--cZ)) scale(var(--cScale));
-                        }
-                        .carousel-cylinder[data-mode="fan"] .poker-card {
-                            --cX: var(--tx); --cY: var(--ty); --cRot: var(--rot); --cRotY: 0deg; --cZ: var(--fan-z); --cScale: 1;
-                        }
-                        ${generateFanCSS()}
-                        .carousel-cylinder[data-mode="fan"] .poker-card:hover {
-                            --cY: calc(var(--ty) + 25px); --cScale: 1.25; --cZ: 120px; --cRot: calc(var(--rot) + var(--h-rot)); z-index: 100 !important;
-                        }
-                        .carousel-cylinder[data-mode="carousel"] .poker-card {
-                            --cX: 0px; --cY: 0px; --cRot: 0deg; --cRotY: var(--ring-angle); --cZ: var(--ring-radius); --cScale: 0.82; 
-                        }
-                        .carousel-cylinder[data-mode="carousel"] .poker-card.is-active {
-                            --cY: 0px; --cScale: 1.35; --cZ: calc(var(--ring-radius) + 110px); z-index: 500 !important;
-                        }
-                        
-                        video:fullscreen { object-fit: contain !important; background: #000 !important; }
-                        video:-webkit-full-screen { object-fit: contain !important; background: #000 !important; }
-                        video:-moz-full-screen { object-fit: contain !important; background: #000 !important; }
-                        video:-ms-fullscreen { object-fit: contain !important; background: #000 !important; }
-                    `}} />
-
+                    {/* 粒子 */}
                     {particles.map(p => (
                         <div key={p.id} className="cube-wrapper" style={{ left: p.x, top: p.y }}>
-                            <div className="cube-particle" style={{ '--size': p.size, '--half-size': p.halfSize, '--alpha': p.alpha, '--dy': p.driftY, width: p.size, height: p.size, animationDelay: p.delay + 's', '--tx': p.tx, '--ty': p.ty, '--tz': p.tz, '--rotX': p.rotX, '--rotY': p.rotY, '--rotZ': p.rotZ }}>
-                                <div className="cube-face" style={{ transform: `rotateY(0deg) translateZ(${p.halfSize})`, filter: 'brightness(1.2)' }}></div>
-                                <div className="cube-face" style={{ transform: `rotateY(180deg) translateZ(${p.halfSize})`, filter: 'brightness(0.6)' }}></div>
+                            <div className="cube-particle" style={{
+                                width: p.size, height: p.size,
+                                animationDelay: p.delay + 's',
+                                '--tx': p.tx, '--ty': p.ty, '--tz': p.tz,
+                                '--dy': p.dy,
+                                '--rotX': p.rotX, '--rotY': p.rotY, '--rotZ': p.rotZ
+                            }}>
+                                <div className="cube-face" style={{ transform: `rotateY(0deg) translateZ(${p.half})`,   filter: 'brightness(1.2)' }}></div>
+                                <div className="cube-face" style={{ transform: `rotateY(180deg) translateZ(${p.half})`, filter: 'brightness(0.6)' }}></div>
                             </div>
                         </div>
                     ))}
 
-                    <nav className="w-full z-50 bg-gray-200/75 backdrop-blur-[3px] border-b border-gray-300/50 shrink-0 pointer-events-auto">
+                    {/* 導航列 */}
+                    <nav className="fixed top-0 w-full z-50 bg-gray-200/75 backdrop-blur-[3px] border-b border-gray-300/50 pointer-events-auto">
                         <div className="max-w-[1400px] mx-auto px-6 flex justify-center items-center py-2 md:py-5">
-                            <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/sdozccujzyq0tu6i0oyu.png" alt="JIA YOU" className="h-[52px] md:h-[82px] object-contain drop-shadow-sm" />
+                            <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/sdozccujzyq0tu6i0oyu.png"
+                                alt="JIA YOU" className="h-[52px] md:h-[82px] object-contain drop-shadow-sm pointer-events-none" />
                         </div>
                     </nav>
 
-                    <main className={`flex-grow flex flex-col items-center justify-center w-full relative overflow-hidden bg-transparent ${isDraggingState ? 'is-dragging' : ''}`} onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd} onMouseDown={onDragStart} onMouseMove={onDragMove} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
-                        
-                        {/* 關閉影片按鈕 */}
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); handleClose(); }} 
-                            onTouchStart={(e) => e.stopPropagation()} 
-                            onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleClose(); }} 
-                            className={`group absolute bottom-2 md:bottom-4 z-[600] flex items-center justify-center w-[75px] h-[75px] md:w-[82px] md:h-[82px] transition-all duration-300 hover:scale-110 active:scale-95 pointer-events-auto ${selectedIndex !== null ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                    {/* 畫布 */}
+                    <main
+                        className={`canvas-container flex-grow ${dragging ? 'is-dragging' : ''}`}
+                        onMouseDown={handlePointerDown}
+                        onMouseMove={handlePointerMove}
+                        onMouseUp={handlePointerUp}
+                        onMouseLeave={handlePointerUp}
+                        onTouchStart={handlePointerDown}
+                        onTouchMove={handlePointerMove}
+                        onTouchEnd={handlePointerUp}
+                        onClick={handleGlobalClick}
+                        onWheel={handleWheel}
+                    >
+                        {/* 可平移的世界層 */}
+                        <div
+                            className="absolute inset-0 w-full h-full pointer-events-none will-change-transform"
+                            style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0)` }}
                         >
-                            <div className="relative w-[50px] h-[50px] md:w-[55px] md:h-[55px]">
-                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773043478/bp5jdyij3luwver3lbig.png" alt="Close" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
-                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773043478/mxg6y3stn7chayin3a9a.png" alt="Close Hover" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
-                            </div>
-                        </button>
-
-                        <div className="scene relative w-full max-w-6xl h-[40vh] md:h-[60vh] flex items-center justify-center -translate-y-[5%] pointer-events-none transition-transform duration-700 ease-out">
-                            <div ref={cylinderRef} className="carousel-cylinder relative w-full h-full flex items-center justify-center pointer-events-none" data-mode={selectedIndex === null ? 'fan' : 'carousel'} style={{ transform: selectedIndex !== null ? `translateZ(var(--carousel-tz)) rotateY(${rotation}deg)` : `translateZ(0) rotateY(0deg)` }}>
-                                {videos.map((video, index) => {
-                                    const isActive = selectedIndex === index;
+                            {/*
+                             * BUG FIX #3：世界原點設在畫面中心，
+                             * 每張卡片用 left/top + translate(-50%,-50%) 定位。
+                             * transform 只剩 rotate，不再與 translate 衝突。
+                             */}
+                            <div className="absolute" style={{ left: '50vw', top: '50vh' }}>
+                                {cardPositions.current.length > 0 && videos.map((video, index) => {
+                                    const pos = cardPositions.current[index];
                                     return (
-                                        <div key={index} data-pos={index} onClick={() => handleCardClick(index)} style={{ '--ring-angle': `${index * stepAngle}deg`, zIndex: getDepthIndex(index) }} className={`poker-card absolute w-[130px] sm:w-[180px] md:w-[240px] lg:w-[280px] rounded-2xl shadow-xl flex flex-col cursor-pointer bg-white ring-1 ring-black/5 ${selectedIndex === null ? (index < 7 ? 'opacity-100' : 'opacity-0 pointer-events-none') : (isActive ? 'opacity-100 is-active cursor-default' : 'opacity-40')}`}>
-                                            <div className="relative w-full aspect-video bg-gray-900 flex items-center justify-center overflow-hidden rounded-2xl">
+                                        <div
+                                            key={index}
+                                            className="poker-card pointer-events-auto"
+                                            style={{
+                                                /* 用 left/top 做空間定位，transform 只做 rotate */
+                                                left:      pos.x + 'px',
+                                                top:       pos.y + 'px',
+                                                width:     cardW + 'px',
+                                                '--card-rot': pos.rot + 'deg',
+                                                /* 讓卡片以自身中心為錨點 */
+                                                marginLeft: -(cardW / 2) + 'px',
+                                                marginTop:  -(cardW * 9/16 / 2) + 'px',
+                                                zIndex: index
+                                            }}
+                                            onClick={(e) => handleCardClick(index, e)}
+                                            onMouseEnter={() => handleGridHover(index, true)}
+                                            onMouseLeave={() => handleGridHover(index, false)}
+                                        >
+                                            <div className="relative w-full aspect-video bg-gray-900 overflow-hidden">
                                                 {video.url ? (
-                                                    <video 
-                                                        id={`video-${index}`} 
-                                                        src={video.startTime ? `${video.url}#t=${video.startTime}` : video.url} 
-                                                        className="absolute inset-0 w-full h-full object-cover z-10" 
-                                                        loop 
-                                                        muted 
-                                                        playsInline 
-                                                        controls={selectedIndex !== null} 
-                                                        onTimeUpdate={(e) => { const st = video.startTime || 0.1; if (!isActive && e.target.currentTime >= st + 10) e.target.currentTime = st; }} 
+                                                    <video
+                                                        id={`video-${index}`}
+                                                        src={video.startTime ? `${video.url}#t=${video.startTime}` : video.url}
+                                                        className="absolute inset-0 w-full h-full object-cover"
+                                                        loop muted playsInline
+                                                        onTimeUpdate={(e) => {
+                                                            const st = video.startTime || 0.1;
+                                                            if (e.target.currentTime >= st + 10) e.target.currentTime = st;
+                                                        }}
                                                     />
                                                 ) : (
-                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1a202c] text-white z-10"><span className="text-4xl font-black">#{index + 1}</span></div>
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-[#1a202c] text-white">
+                                                        <span className="text-4xl font-black">#{index + 1}</span>
+                                                    </div>
                                                 )}
                                             </div>
-                                            {!isActive && <div className="absolute inset-0 z-20 cursor-pointer bg-transparent rounded-2xl"></div>}
-                                            {selectedIndex !== null && <div className="absolute bottom-full mb-1 right-0 z-30 text-[9px] md:text-[7px] text-[#1d1021] font-black pointer-events-none px-1">#{index + 1}</div>}
+                                            {/* 透明蓋層攔截點擊，避免影片元件吃掉事件 */}
+                                            <div className="absolute inset-0 z-10 cursor-pointer" />
                                         </div>
                                     );
                                 })}
@@ -429,72 +565,91 @@
                         </div>
                     </main>
 
-                    <footer className="w-full border-t border-gray-300/50 bg-gray-200/75 backdrop-blur-[3px] py-8 md:py-10 shrink-0 relative z-50 flex flex-col items-center gap-6 pointer-events-auto">
+                    {/* 頁尾 */}
+                    <footer className="fixed bottom-0 w-full border-t border-gray-300/50 bg-gray-200/75 backdrop-blur-[3px] py-4 md:py-6 z-50 flex flex-col items-center gap-4 pointer-events-auto">
                         <div className="flex items-center gap-10 md:gap-8">
-                            <a 
-                                href="https://www.instagram.com/brucelee_0315/" 
-                                target="_blank" 
+                            {/* Instagram */}
+                            <a href="https://www.instagram.com/brucelee_0315/" target="_blank" rel="noreferrer"
                                 onTouchEnd={(e) => { e.preventDefault(); window.open("https://www.instagram.com/brucelee_0315/", "_blank"); }}
-                                className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6"
-                            >
-                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/sumwisvejzputyua6ev6.png" alt="Instagram" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
+                                className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6">
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/sumwisvejzputyua6ev6.png" alt="Instagram"       className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
                                 <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037625/kcfoqze9eld8nzbjlzlc.png" alt="Instagram Hover" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
                             </a>
-                            <a 
-                                href="https://www.youtube.com/playlist?list=PLSCTNmE37Eu_dR0Q5ofujGvWh4WLhFzYO" 
-                                target="_blank" 
+                            {/* YouTube */}
+                            <a href="https://www.youtube.com/playlist?list=PLSCTNmE37Eu_dR0Q5ofujGvWh4WLhFzYO" target="_blank" rel="noreferrer"
                                 onTouchEnd={(e) => { e.preventDefault(); window.open("https://www.youtube.com/playlist?list=PLSCTNmE37Eu_dR0Q5ofujGvWh4WLhFzYO", "_blank"); }}
-                                className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6"
-                            >
-                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/r1kqvxkv5p3l32g33oz8.png" alt="YouTube" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
+                                className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6">
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/r1kqvxkv5p3l32g33oz8.png" alt="YouTube"       className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
                                 <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037625/n6901zavjz7wqegdasmh.png" alt="YouTube Hover" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
                             </a>
-                            <button 
-                                onClick={() => setShowEmailModal(true)} 
+                            {/* Email */}
+                            <button onClick={() => setShowEmailModal(true)}
                                 onTouchEnd={(e) => { e.preventDefault(); setShowEmailModal(true); }}
-                                className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6 focus:outline-none"
-                            >
-                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/kiscqnu1yeemr1vry311.png" alt="Email" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
+                                className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6 focus:outline-none">
+                                <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/kiscqnu1yeemr1vry311.png" alt="Email"       className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
                                 <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037625/cn0ttakfhgy0fk9cb0uq.png" alt="Email Hover" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
                             </button>
                         </div>
-                        <div className="text-[9px] md:text-[10px] text-gray-500 font-black tracking-[0.2em] uppercase text-center px-6 leading-relaxed">Copyright © {new Date().getFullYear()} Jia You Animation Co., Ltd.</div>
+                        <div className="text-[9px] md:text-[10px] text-gray-500 font-black tracking-[0.2em] uppercase text-center px-6 leading-relaxed">
+                            Copyright © {new Date().getFullYear()} Jia You Animation Co., Ltd.
+                        </div>
                     </footer>
 
-                    {/* 透明毛玻璃聯絡信箱彈出視窗 (手機適配) */}
-                    {showEmailModal && (
-                        <div 
-                            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm px-6 pointer-events-auto" 
-                            onClick={() => setShowEmailModal(false)}
-                        >
-                            <div 
-                                className="relative bg-white/10 backdrop-blur-2xl border border-white/20 rounded-[32px] p-10 max-w-[340px] w-full shadow-2xl transform transition-all text-center" 
-                                onClick={e => e.stopPropagation()}
-                            >
-                                {/* 右上角 X 關閉按鈕 */}
-                                <button 
-                                    onClick={() => setShowEmailModal(false)} 
-                                    className="absolute top-6 right-6 text-white/60 hover:text-white active:scale-90 transition-all p-2 rounded-full hover:bg-white/10 focus:outline-none"
+                    {/* ── 影片預覽 Modal ── */}
+                    {modalPhase !== 'closed' && (
+                        <>
+                            {/* 背景遮罩 */}
+                            <div
+                                className={`video-modal-backdrop ${modalBgOpen ? 'open' : ''}`}
+                                onClick={handleCloseModal}
+                            />
+                            {/* 影片容器（會動畫展開/收縮）*/}
+                            <div className="video-modal-box" style={modalStyle}>
+                                {modalVideo?.url && (
+                                    <video
+                                        ref={modalVideoRef}
+                                        src={modalVideo.url}
+                                        className="w-full h-full object-contain bg-black"
+                                        loop
+                                        playsInline
+                                        controls={modalPhase === 'open'}
+                                    />
+                                )}
+                                <button
+                                    className={`video-modal-close ${closeVisible ? 'visible' : ''}`}
+                                    onClick={handleCloseModal}
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
                                 </button>
+                            </div>
+                        </>
+                    )}
 
+                    {/* Email Modal */}
+                    {showEmailModal && (
+                        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm px-6 pointer-events-auto"
+                            onClick={() => setShowEmailModal(false)}>
+                            <div className="relative bg-white/10 backdrop-blur-2xl border border-white/20 rounded-[32px] p-10 max-w-[340px] w-full shadow-2xl text-center"
+                                onClick={e => e.stopPropagation()}>
+                                <button onClick={() => setShowEmailModal(false)}
+                                    className="absolute top-6 right-6 text-white/60 hover:text-white active:scale-90 transition-all p-2 rounded-full hover:bg-white/10 focus:outline-none">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </button>
                                 <p className="text-white mt-6 mb-10 select-all font-bold text-xl break-all drop-shadow-md tracking-tight leading-relaxed">
                                     bruceleework@gmail.com
                                 </p>
-                                
-                                <div className="flex flex-col gap-4">
-                                    <button 
-                                        onClick={handleCopyEmail}
-                                        className={`w-full py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-3 border active:scale-[0.98] ${copied ? 'bg-[#0056A3] text-white shadow-lg shadow-[#0056A3]/30 border-[#0056A3]' : 'bg-white/10 text-white hover:bg-white/20 border-white/20'}`}
-                                    >
-                                        {copied ? (
-                                            <><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg> 已複製！</>
-                                        ) : (
-                                            <><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> 複製信箱</>
-                                        )}
-                                    </button>
-                                </div>
+                                <button onClick={handleCopyEmail}
+                                    className={`w-full py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-3 border active:scale-[0.98] ${copied ? 'bg-[#0056A3] text-white shadow-lg shadow-[#0056A3]/30 border-[#0056A3]' : 'bg-white/10 text-white hover:bg-white/20 border-white/20'}`}>
+                                    {copied ? (
+                                        <><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>已複製！</>
+                                    ) : (
+                                        <><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>複製信箱</>
+                                    )}
+                                </button>
                             </div>
                         </div>
                     )}
@@ -502,8 +657,7 @@
             );
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>
