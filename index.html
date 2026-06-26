@@ -5,9 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>JU_ANI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 🛑 將 unpkg 替換為更穩定、不易被擋的 cdnjs -->
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.20/babel.min.js"></script>
+    
     <style>
         body {
             background-color: #1a1a2e;
@@ -45,15 +48,8 @@
             cursor: grabbing;
         }
 
-        /*
-         * BUG FIX #1：原本程式碼裡同一個元素寫了兩個 transform 屬性，
-         * 後面的 rotate() 覆蓋了前面的 translate3d()，導致所有卡片堆在一起。
-         * 修正方式：把 translate 改為 left/top absolute 定位，
-         * 讓 transform 只負責 rotate + hover scale，互不干擾。
-         */
         .poker-card {
             position: absolute;
-            /* transform 只放 rotate，由 JS 透過 CSS variable 注入旋轉角度 */
             transform: rotate(var(--card-rot, 0deg));
             transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1),
                         box-shadow 0.3s ease;
@@ -65,10 +61,6 @@
             overflow: hidden;
         }
 
-        /*
-         * BUG FIX #2：原本 .poker-card:hover 的 transform 會被 inline style 覆蓋無效。
-         * 現在 inline style 只有 left/top，transform 只在 CSS 裡，hover 可以正常運作。
-         */
         .poker-card:hover {
             transform: rotate(var(--card-rot, 0deg)) scale(1.06) translateY(-12px);
             box-shadow: 0 28px 56px -10px rgba(0, 0, 0, 0.55);
@@ -102,7 +94,6 @@
             overflow: hidden;
             background: #000;
             box-shadow: 0 40px 100px -20px rgba(0,0,0,0.8);
-            /* 初始：從卡片位置展開，由 JS 動態設定 */
             transition: top 0.42s cubic-bezier(0.32, 0.72, 0, 1),
                         left 0.42s cubic-bezier(0.32, 0.72, 0, 1),
                         width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
@@ -203,13 +194,12 @@
             const [dragging, setDragging]             = useState(false);
 
             // ── 影片預覽 Modal 狀態 ──
-            // phase: 'closed' | 'opening' | 'open' | 'closing'
             const [modalPhase, setModalPhase]   = useState('closed');
             const [modalVideo, setModalVideo]   = useState(null);
             const [modalStyle, setModalStyle]   = useState({});
             const [modalBgOpen, setModalBgOpen] = useState(false);
             const [closeVisible, setCloseVisible] = useState(false);
-            const originRectRef                 = useRef(null);  // 卡片在螢幕上的 DOMRect
+            const originRectRef                 = useRef(null); 
             const modalVideoRef                 = useRef(null);
 
             const cardPositions  = useRef([]);
@@ -217,24 +207,21 @@
             const wasDragging    = useRef(false);
             const lastPos        = useRef({ x: 0, y: 0 });
             const currentPan     = useRef({ x: 0, y: 0 });
-            // 慣性滑動
+            
             const velocity       = useRef({ x: 0, y: 0 });
             const rafId          = useRef(null);
 
-            // ESC 鍵關閉 Modal
             useEffect(() => {
                 const onKey = (e) => { if (e.key === 'Escape') handleCloseModal(); };
                 window.addEventListener('keydown', onKey);
                 return () => window.removeEventListener('keydown', onKey);
             }, [modalPhase]);
 
-            // 初始化卡片位置
             useEffect(() => {
                 cardPositions.current = calcCardPositions();
-                setPan({ x: 0, y: 0 }); // 觸發一次 render
+                setPan({ x: 0, y: 0 }); 
             }, []);
 
-            // ── 慣性動畫 ──
             const startMomentum = useCallback(() => {
                 cancelAnimationFrame(rafId.current);
                 const tick = () => {
@@ -249,7 +236,6 @@
                 rafId.current = requestAnimationFrame(tick);
             }, []);
 
-            // ── 拖曳事件 ──
             const getClientXY = (e) => e.touches
                 ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
                 : { x: e.clientX, y: e.clientY };
@@ -285,7 +271,6 @@
                 startMomentum();
             }, [startMomentum]);
 
-            // 滾輪支援
             const handleWheel = useCallback((e) => {
                 if (showEmailModal) return;
                 cancelAnimationFrame(rafId.current);
@@ -294,7 +279,6 @@
                 setPan({ ...currentPan.current });
             }, [showEmailModal]);
 
-            // ── 卡片互動 ──
             const handleGridHover = (index, entering) => {
                 const vid = document.getElementById(`video-${index}`);
                 if (!vid) return;
@@ -306,7 +290,6 @@
                 }
             };
 
-            // ── 計算展開目標尺寸（符合 16:9，盡量撐滿視窗）──
             const getExpandedRect = () => {
                 const vw = window.innerWidth;
                 const vh = window.innerHeight;
@@ -320,11 +303,9 @@
                 return { width: w, height: h, left: (vw - w) / 2, top: (vh - h) / 2 };
             };
 
-            // ── 開啟 Modal ──
             const handleCardClick = (index, e) => {
                 if (wasDragging.current) { e.preventDefault(); return; }
 
-                // 取得該卡片目前在螢幕上的位置
                 const cardEl = e.currentTarget;
                 const rect   = cardEl.getBoundingClientRect();
 
@@ -334,7 +315,6 @@
                 setModalBgOpen(false);
                 setCloseVisible(false);
 
-                // Step 1：先把 box 貼在卡片上
                 setModalStyle({
                     left:         rect.left + 'px',
                     top:          rect.top  + 'px',
@@ -344,7 +324,6 @@
                     opacity:      1,
                 });
 
-                // Step 2：下一 tick 展開到中央
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                         const exp = getExpandedRect();
@@ -357,7 +336,7 @@
                             opacity:      1,
                         });
                         setModalBgOpen(true);
-                        // 動畫結束後開始播放＋顯示關閉按鈕
+                        
                         setTimeout(() => {
                             setModalPhase('open');
                             setCloseVisible(true);
@@ -371,7 +350,6 @@
                 });
             };
 
-            // ── 關閉 Modal ──
             const handleCloseModal = () => {
                 if (modalPhase !== 'open') return;
                 setModalPhase('closing');
@@ -383,7 +361,6 @@
                     modalVideoRef.current.muted = true;
                 }
 
-                // 縮回原始卡片位置
                 const rect = originRectRef.current;
                 if (rect) {
                     setModalStyle({
@@ -401,14 +378,12 @@
                 }, 420);
             };
 
-            // ── 全域點擊粒子 ──
             const handleGlobalClick = (e) => {
                 if (!wasDragging.current && !showEmailModal && !e.target.closest('.poker-card')) {
                     spawnParticles(e.clientX, e.clientY);
                 }
             };
 
-            // ── Helpers ──
             const spawnParticles = (cx, cy) => {
                 const prefix = Date.now();
                 const cubes = Array.from({ length: 15 }, (_, i) => {
@@ -442,7 +417,6 @@
                         setTimeout(() => setCopied(false), 2000);
                     });
                 } else {
-                    // fallback for older browsers
                     const ta = document.createElement('textarea');
                     ta.value = email;
                     Object.assign(ta.style, { position: 'fixed', top: 0, left: 0 });
@@ -454,7 +428,6 @@
                 }
             };
 
-            // ── 卡片尺寸 ──
             const cardW = typeof window !== 'undefined' && window.innerWidth >= 1024 ? 320
                         : typeof window !== 'undefined' && window.innerWidth >= 768  ? 280
                         : typeof window !== 'undefined' && window.innerWidth >= 640  ? 220
@@ -485,7 +458,6 @@
                         </div>
                     ))}
 
-                    {/* 導航列 */}
                     <nav className="fixed top-0 w-full z-50 bg-gray-200/75 backdrop-blur-[3px] border-b border-gray-300/50 pointer-events-auto">
                         <div className="max-w-[1400px] mx-auto px-6 flex justify-center items-center py-2 md:py-5">
                             <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/sdozccujzyq0tu6i0oyu.png"
@@ -493,7 +465,6 @@
                         </div>
                     </nav>
 
-                    {/* 畫布 */}
                     <main
                         className={`canvas-container flex-grow ${dragging ? 'is-dragging' : ''}`}
                         onMouseDown={handlePointerDown}
@@ -506,16 +477,10 @@
                         onClick={handleGlobalClick}
                         onWheel={handleWheel}
                     >
-                        {/* 可平移的世界層 */}
                         <div
                             className="absolute inset-0 w-full h-full pointer-events-none will-change-transform"
                             style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0)` }}
                         >
-                            {/*
-                             * BUG FIX #3：世界原點設在畫面中心，
-                             * 每張卡片用 left/top + translate(-50%,-50%) 定位。
-                             * transform 只剩 rotate，不再與 translate 衝突。
-                             */}
                             <div className="absolute" style={{ left: '50vw', top: '50vh' }}>
                                 {cardPositions.current.length > 0 && videos.map((video, index) => {
                                     const pos = cardPositions.current[index];
@@ -524,12 +489,10 @@
                                             key={index}
                                             className="poker-card pointer-events-auto"
                                             style={{
-                                                /* 用 left/top 做空間定位，transform 只做 rotate */
                                                 left:      pos.x + 'px',
                                                 top:       pos.y + 'px',
                                                 width:     cardW + 'px',
                                                 '--card-rot': pos.rot + 'deg',
-                                                /* 讓卡片以自身中心為錨點 */
                                                 marginLeft: -(cardW / 2) + 'px',
                                                 marginTop:  -(cardW * 9/16 / 2) + 'px',
                                                 zIndex: index
@@ -556,7 +519,6 @@
                                                     </div>
                                                 )}
                                             </div>
-                                            {/* 透明蓋層攔截點擊，避免影片元件吃掉事件 */}
                                             <div className="absolute inset-0 z-10 cursor-pointer" />
                                         </div>
                                     );
@@ -565,24 +527,20 @@
                         </div>
                     </main>
 
-                    {/* 頁尾 */}
                     <footer className="fixed bottom-0 w-full border-t border-gray-300/50 bg-gray-200/75 backdrop-blur-[3px] py-4 md:py-6 z-50 flex flex-col items-center gap-4 pointer-events-auto">
                         <div className="flex items-center gap-10 md:gap-8">
-                            {/* Instagram */}
                             <a href="https://www.instagram.com/brucelee_0315/" target="_blank" rel="noreferrer"
                                 onTouchEnd={(e) => { e.preventDefault(); window.open("https://www.instagram.com/brucelee_0315/", "_blank"); }}
                                 className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6">
                                 <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/sumwisvejzputyua6ev6.png" alt="Instagram"       className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
                                 <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037625/kcfoqze9eld8nzbjlzlc.png" alt="Instagram Hover" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
                             </a>
-                            {/* YouTube */}
                             <a href="https://www.youtube.com/playlist?list=PLSCTNmE37Eu_dR0Q5ofujGvWh4WLhFzYO" target="_blank" rel="noreferrer"
                                 onTouchEnd={(e) => { e.preventDefault(); window.open("https://www.youtube.com/playlist?list=PLSCTNmE37Eu_dR0Q5ofujGvWh4WLhFzYO", "_blank"); }}
                                 className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6">
                                 <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037007/r1kqvxkv5p3l32g33oz8.png" alt="YouTube"       className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 group-hover:opacity-0" />
                                 <img src="https://res.cloudinary.com/dsvojygx5/image/upload/v1773037625/n6901zavjz7wqegdasmh.png" alt="YouTube Hover" className="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 opacity-0 group-hover:opacity-100" />
                             </a>
-                            {/* Email */}
                             <button onClick={() => setShowEmailModal(true)}
                                 onTouchEnd={(e) => { e.preventDefault(); setShowEmailModal(true); }}
                                 className="group transform hover:scale-110 transition-all inline-block relative w-7 h-7 md:w-6 md:h-6 focus:outline-none">
@@ -598,12 +556,10 @@
                     {/* ── 影片預覽 Modal ── */}
                     {modalPhase !== 'closed' && (
                         <>
-                            {/* 背景遮罩 */}
                             <div
                                 className={`video-modal-backdrop ${modalBgOpen ? 'open' : ''}`}
                                 onClick={handleCloseModal}
                             />
-                            {/* 影片容器（會動畫展開/收縮）*/}
                             <div className="video-modal-box" style={modalStyle}>
                                 {modalVideo?.url && (
                                     <video
